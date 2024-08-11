@@ -478,7 +478,8 @@ export default class ReactFlightWebpackPlugin {
                       context,
                       clientRefDep.request,
                       {},
-                      (err3: null | Error, resolvedPath: mixed) => {
+                      (err3: null | Error, _, result: any) => {
+                        const resolvedPath = result?.path;
                         if (err3 || typeof resolvedPath !== 'string') {
                           return filterCb(null, false);
                         }
