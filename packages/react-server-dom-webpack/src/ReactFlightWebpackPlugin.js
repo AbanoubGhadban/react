@@ -304,11 +304,27 @@ export default class ReactFlightWebpackPlugin {
               const href = pathToFileURL(module.resource).href;
 
               if (href !== undefined) {
-                filePathToModuleMetadata[href] = {
-                  id,
-                  chunks,
-                  name: '*',
-                };
+                if (filePathToModuleMetadata[href]) {
+                  // Merge chunks from additional chunk groups instead of overwriting.
+                  // A module can appear in multiple chunk groups, and all chunks
+                  // need to be recorded so the flight client preloads them all.
+                  const existing = filePathToModuleMetadata[href];
+                  const existingChunkIds: Set<mixed> = new Set();
+                  for (let i = 0; i < existing.chunks.length; i += 2) {
+                    existingChunkIds.add(existing.chunks[i]);
+                  }
+                  for (let j = 0; j < chunks.length; j += 2) {
+                    if (!existingChunkIds.has(chunks[j])) {
+                      existing.chunks.push(chunks[j], chunks[j + 1]);
+                    }
+                  }
+                } else {
+                  filePathToModuleMetadata[href] = {
+                    id,
+                    chunks: chunks.slice(),
+                    name: '*',
+                  };
+                }
               }
             }
 
