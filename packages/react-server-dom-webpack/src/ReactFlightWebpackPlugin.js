@@ -279,8 +279,13 @@ export default class ReactFlightWebpackPlugin {
             chunkGroup.chunks.forEach(function (c) {
               // eslint-disable-next-line no-for-of-loops/no-for-of-loops
               for (const file of c.files) {
-                if (!file.endsWith('.js')) return;
-                if (file.endsWith('.hot-update.js')) return;
+                // Note: `continue` (not `return`) is intentional here.
+                // `return` would exit the forEach callback, skipping the
+                // entire chunk when a non-JS file (e.g. .css from
+                // MiniCssExtractPlugin) appears before the .js file in
+                // the chunk's files Set.
+                if (!file.endsWith('.js')) continue;
+                if (file.endsWith('.hot-update.js')) continue;
                 chunks.push(c.id, file);
                 break;
               }
