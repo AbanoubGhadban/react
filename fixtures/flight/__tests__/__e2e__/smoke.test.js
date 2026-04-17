@@ -55,13 +55,14 @@ test('records JS chunks for CSS-importing client component and loads it in both 
     manifest.filePathToModuleMetadata ?? manifest;
 
   const dynamicEntry = Object.entries(moduleMetadata).find(([key]) =>
-    key.includes('Dynamic.js')
+    /\/Dynamic\.js$/.test(key)
   );
   expect(dynamicEntry).toBeTruthy();
 
   const [, entry] = dynamicEntry;
   expect(entry.chunks.length).toBeGreaterThan(0);
 
+  // chunks array is [chunkId, filename, chunkId, filename, …] pairs
   const filenames = entry.chunks.filter((_, index) => index % 2 === 1);
   expect(
     filenames.some(
