@@ -274,15 +274,42 @@ export default class ReactFlightWebpackPlugin {
             }
           });
 
+          // FOUC fix: prefix used to turn bare CSS chunk filenames into full
+          // URLs the SSR pipeline can hand to the React DOM stylesheet
+          // resource graph.
+          const cssPrefix: string =
+            typeof compilation.outputOptions.publicPath === 'string'
+              ? compilation.outputOptions.publicPath
+              : '';
+
           compilation.chunkGroups.forEach(function (chunkGroup) {
             const chunks: Array<string> = [];
+            // FOUC fix: also collect every .css file emitted alongside the JS
+            // chunks reachable from this chunkGroup. They are recorded on each
+            // resolved client reference's manifest entry so the SSR pipeline
+            // can render <link rel="stylesheet" precedence> JSX siblings of
+            // each client-reference element. React DOM emits its $RR gating
+            // script for deferred Suspense subtrees, holding the swap until
+            // each stylesheet's load event fires.
+            const cssFiles: Array<string> = [];
             chunkGroup.chunks.forEach(function (c) {
               // eslint-disable-next-line no-for-of-loops/no-for-of-loops
               for (const file of c.files) {
-                if (file.endsWith('.js') && !file.endsWith('.hot-update.js')) {
-                  chunks.push(c.id, file);
-                  break;
+                if (file.endsWith('.css')) {
+                  const cssUrl = cssPrefix + file;
+                  if (cssFiles.indexOf(cssUrl) === -1) {
+                    cssFiles.push(cssUrl);
+                  }
+                  continue;
                 }
+                if (!file.endsWith('.js')) {
+                  continue;
+                }
+                if (file.endsWith('.hot-update.js')) {
+                  continue;
+                }
+                chunks.push(c.id, file);
+                break;
               }
             });
 
@@ -312,10 +339,19 @@ export default class ReactFlightWebpackPlugin {
                       existing.chunks.push(chunks[j], chunks[j + 1]);
                     }
                   }
+                  if (existing.css == null) {
+                    existing.css = [];
+                  }
+                  for (let k = 0; k < cssFiles.length; k++) {
+                    if (existing.css.indexOf(cssFiles[k]) === -1) {
+                      existing.css.push(cssFiles[k]);
+                    }
+                  }
                 } else {
                   filePathToModuleMetadata[href] = {
                     id,
                     chunks: chunks.slice(),
+                    css: cssFiles.slice(),
                     name: '*',
                   };
                 }

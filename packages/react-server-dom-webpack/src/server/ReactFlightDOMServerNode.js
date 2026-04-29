@@ -87,6 +87,11 @@ function renderToPipeableStream(
   webpackMap: ClientManifest,
   options?: Options,
 ): PipeableStream {
+  // FOUC fix: publish the manifest so the loader-emitted CSS wrappers
+  // (see ReactFlightWebpackNodeLoader transformClientModule) can look up
+  // each client reference's CSS hrefs at render time without consumers
+  // having to wire it manually.
+  (globalThis: any).__reactFlightClientManifest = webpackMap;
   const request = createRequest(
     model,
     webpackMap,
@@ -163,6 +168,9 @@ function prerenderToNodeStream(
   webpackMap: ClientManifest,
   options?: PrerenderOptions,
 ): Promise<StaticResult> {
+  // FOUC fix: same as renderToPipeableStream — publish the manifest so
+  // loader-emitted CSS wrappers can find it via globalThis.
+  (globalThis: any).__reactFlightClientManifest = webpackMap;
   return new Promise((resolve, reject) => {
     const onFatalError = reject;
     function onAllReady() {
