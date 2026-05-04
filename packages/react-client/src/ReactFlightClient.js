@@ -276,7 +276,6 @@ export type Response = {
   _encodeFormAction: void | EncodeFormActionCallback,
   _nonce: ?string,
   _chunks: Map<number, SomeChunk<any>>,
-  _fromJSON: (key: string, value: JSONValue) => any,
   _stringDecoder: StringDecoder,
   _rowState: RowParserState,
   _rowID: number, // parts of a row ID parsed so far
@@ -1508,6 +1507,11 @@ function parseModelString(
                 'or more specific objects.'
               );
             },
+            // no-op: the walk function may try to reassign this property after
+            // parseModelString returns. With the JSON.parse reviver, the engine's
+            // internal CreateDataProperty silently failed. We use a no-op setter
+            // to match that behavior in strict mode.
+            set: function () {},
             enumerable: true,
             configurable: false,
           });
@@ -1576,7 +1580,6 @@ function ResponseInstance(
   this._nonce = nonce;
   this._chunks = chunks;
   this._stringDecoder = createStringDecoder();
-  this._fromJSON = (null: any);
   this._rowState = 0;
   this._rowID = 0;
   this._rowTag = 0;
@@ -1618,8 +1621,6 @@ function ResponseInstance(
     this._replayConsole = replayConsole;
     this._rootEnvironmentName = rootEnv;
   }
-  // Don't inline this call because it causes closure to outline the call above.
-  this._fromJSON = createFromJSONCallback(this);
 }
 
 export function createResponse(
@@ -3138,21 +3139,52 @@ export function processStringChunk(response: Response, chunk: string): void {
 }
 
 function parseModel<T>(response: Response, json: UninitializedModel): T {
-  return JSON.parse(json, response._fromJSON);
+  const rawModel = JSON.parse(json);
+  // Pass a wrapper object as parentObject to match the original JSON.parse
+  // reviver behavior, where the root value's reviver receives {"": rootValue}
+  // as `this`. This ensures parentObject is never null when accessed downstream.
+  return reviveModel(response, rawModel, {'': rawModel}, '');
 }
 
-function createFromJSONCallback(response: Response) {
-  // $FlowFixMe[missing-this-annot]
-  return function (key: string, value: JSONValue) {
-    if (typeof value === 'string') {
-      // We can't use .bind here because we need the "this" value.
-      return parseModelString(response, this, key, value);
+function reviveModel(
+  response: Response,
+  value: JSONValue,
+  parentObject: Object,
+  key: string,
+): any {
+  if (typeof value === 'string') {
+    if (value[0] === '$') {
+      return parseModelString(response, parentObject, key, value);
     }
-    if (typeof value === 'object' && value !== null) {
+    return value;
+  }
+  if (typeof value !== 'object' || value === null) {
+    return value;
+  }
+  if (isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      (value: any)[i] = reviveModel(response, value[i], value, '' + i);
+    }
+    if (value[0] === REACT_ELEMENT_TYPE) {
+      // React element tuple
       return parseModelTuple(response, value);
     }
     return value;
-  };
+  }
+  // Plain object
+  for (const k in value) {
+    if (k === '__proto__') {
+      delete (value: any)[k];
+    } else {
+      const walked = reviveModel(response, (value: any)[k], value, k);
+      if (walked !== undefined) {
+        (value: any)[k] = walked;
+      } else {
+        delete (value: any)[k];
+      }
+    }
+  }
+  return value;
 }
 
 export function close(response: Response): void {
