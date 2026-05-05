@@ -308,12 +308,20 @@ export default class ReactFlightWebpackPlugin {
                 if (file.endsWith('.hot-update.js')) {
                   continue;
                 }
-                // Skip the runtime chunk: it is always loaded by the host page
-                // alongside any initial entry, so re-emitting it during the
-                // Flight stream would re-execute the webpack runtime IIFE,
-                // create a second module cache, and break singletons that
-                // depend on a single runtime instance.
-                if (runtimeChunkFiles.has(file)) {
+                // Skip the runtime chunk on the CLIENT manifest only: it is
+                // always loaded by the host page alongside any initial entry,
+                // so re-emitting it during the Flight stream would re-execute
+                // the webpack runtime IIFE, create a second module cache, and
+                // break singletons that depend on a single runtime instance.
+                //
+                // We must NOT apply this filter to the server manifest. Server
+                // bundles commonly use LimitChunkCountPlugin({maxChunks: 1}),
+                // which collapses every chunk into the entry — making that
+                // single output file the entrypoint's runtime chunk. Filtering
+                // it out leaves every client reference with chunks: [], so the
+                // RSC encoder cannot resolve any client module reference and
+                // the Flight stream stalls.
+                if (!_this.isServer && runtimeChunkFiles.has(file)) {
                   continue;
                 }
                 chunks.push(c.id, file);
