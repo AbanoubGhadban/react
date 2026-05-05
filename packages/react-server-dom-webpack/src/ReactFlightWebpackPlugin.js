@@ -308,6 +308,14 @@ export default class ReactFlightWebpackPlugin {
                 if (file.endsWith('.hot-update.js')) {
                   continue;
                 }
+                // Skip the runtime chunk: it is always loaded by the host page
+                // alongside any initial entry, so re-emitting it during the
+                // Flight stream would re-execute the webpack runtime IIFE,
+                // create a second module cache, and break singletons that
+                // depend on a single runtime instance.
+                if (runtimeChunkFiles.has(file)) {
+                  continue;
+                }
                 chunks.push(c.id, file);
                 break;
               }
