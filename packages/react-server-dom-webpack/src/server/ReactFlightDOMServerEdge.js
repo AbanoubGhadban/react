@@ -59,6 +59,9 @@ function renderToReadableStream(
   webpackMap: ClientManifest,
   options?: Options,
 ): ReadableStream {
+  // FOUC fix: publish the manifest so the loader-emitted CSS wrappers
+  // can look up each client reference's CSS hrefs at render time.
+  (globalThis: any).__reactFlightClientManifest = webpackMap;
   const request = createRequest(
     model,
     webpackMap,
@@ -110,6 +113,8 @@ function prerender(
   webpackMap: ClientManifest,
   options?: Options,
 ): Promise<StaticResult> {
+  // FOUC fix: see renderToReadableStream above.
+  (globalThis: any).__reactFlightClientManifest = webpackMap;
   return new Promise((resolve, reject) => {
     const onFatalError = reject;
     function onAllReady() {

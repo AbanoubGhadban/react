@@ -11,6 +11,12 @@ export type ImportManifestEntry = {
   id: string,
   // chunks is a double indexed array of chunkId / chunkFilename pairs
   chunks: Array<string>,
+  // FOUC fix: list of CSS file URLs (publicPath-prefixed) emitted alongside
+  // this client reference's JS chunks. Read by the SSR pipeline so a
+  // <link rel="stylesheet" precedence> JSX sibling can be rendered next to
+  // the client reference, triggering React DOM's $RR gating script for
+  // deferred Suspense subtrees.
+  css?: Array<string>,
   name: string,
   async?: boolean,
 };
